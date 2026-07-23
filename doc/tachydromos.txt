@@ -1,0 +1,216 @@
+*tachydromos.nvim*  Execute .http files via the `tachy` CLI
+*Tachydromos*
+
+==============================================================================
+
+tachydromos.nvim runs `.http` request files by shelling out to the `tachy`
+CLI (see |tachydromos-contract|) and shows results in a reusable scratch
+buffer: status line, headers, pretty-printed body, and timing.
+
+It follows this repo's `tachy` binary as its execution engine, not an
+embedded HTTP client — every CLI invocation this plugin makes is documented
+in `docs/cli-contract.md`, the single source of truth for how it talks to
+`tachy`.
+
+Features ~
+- Run the request under the cursor (`### NAME` nearest at/above it).
+- Run a request chosen from a picker, or every request in the buffer.
+- Response shown in a reused split/vsplit/float: status, headers, body
+  (pretty-printed for JSON), timing.
+- Environment selection read from `http-client(.private).env.json`.
+- Buffer-local default keymaps in `.http` files, fully overridable.
+- `:checkhealth tachydromos` to verify `tachy` is on PATH and supports the
+  subcommands this plugin depends on.
+
+See also:
+- |tachydromos.setup()|
+- |tachydromos-commands|
+- |tachydromos-mappings|
+- |tachydromos-config|
+- |tachydromos-environments|
+- |tachydromos-chaining|
+
+==============================================================================
+CONTENTS                                                *tachydromos-contents*
+
+  Setup ............................................... |tachydromos-setup|
+  Commands ......................................... |tachydromos-commands|
+  Mappings ......................................... |tachydromos-mappings|
+  Configuration ....................................... |tachydromos-config|
+  Environments .................................. |tachydromos-environments|
+  Chaining caveat .................................. |tachydromos-chaining|
+  Lua API ................................................ |tachydromos-api|
+
+==============================================================================
+SETUP                                                      *tachydromos-setup*
+
+Requires the `tachy` executable on `$PATH` (or pointed at via
+`config.tachy_cmd`). Nothing in this plugin is active until `setup()` is
+called — no user commands, no buffer-local keymaps: >lua
+
+  require('tachydromos').setup({})
+<
+Run `:checkhealth tachydromos` after installing to confirm `tachy` is found
+and that this build supports `list` (used for cursor/picker request
+discovery).
+
+==============================================================================
+COMMANDS                                                *tachydromos-commands*
+
+                                                                *:Tachydromos*
+:Tachydromos run                Run the request under the cursor.
+                                 Equivalent to |tachydromos.run_current()|.
+
+:Tachydromos buffer              Run every request in the current file.
+                                 Equivalent to |tachydromos.run_buffer()|.
+
+:Tachydromos picker               Pick a request by name from the current
+                                 file and run just that one. Equivalent to
+                                 |tachydromos.pick_and_run()|.
+
+:Tachydromos env [{name}]         With {name}, set the active environment
+                                 for the current buffer's future runs
+                                 (`:Tachydromos env prod`). Without it, open
+                                 a picker over environment names discovered
+                                 near the file. See |tachydromos-environments|.
+
+:Tachydromos last                 Reopen the result window for the most
+                                 recent run without starting a new one.
+
+==============================================================================
+MAPPINGS                                                *tachydromos-mappings*
+
+Buffer-local, created only in buffers with 'filetype' `http`, and only after
+|tachydromos.setup()| has run (including buffers already open at setup
+time). Defaults: >
+
+  <leader>rr    Run request under cursor   (:Tachydromos run)
+  <leader>ra    Run whole buffer           (:Tachydromos buffer)
+  <leader>rp    Pick & run a request       (:Tachydromos picker)
+  <leader>re    Select environment         (:Tachydromos env)
+<
+Override via `config.mappings` (see |tachydromos-config|). Set an entry to
+`''` or `false` to disable it without replacing it.
+
+==============================================================================
+CONFIGURATION                                              *tachydromos-config*
+
+Default values: >lua
+
+  require('tachydromos').setup({
+    -- Name or path of the `tachy` executable.
+    tachy_cmd = 'tachy',
+
+    -- Environment used when a buffer has none selected via
+    -- `:Tachydromos env`. `nil` means no `--env` flag is passed at all —
+    -- per the contract, `{{var}}` placeholders that would have come from
+    -- an environment file are then left unresolved, verbatim, not an error.
+    default_env = nil,
+
+    result = {
+      -- 'split', 'vsplit', or 'float'.
+      style = 'split',
+      -- Fraction of the screen the split/float occupies.
+      size = 0.4,
+    },
+
+    mappings = {
+      run        = '<leader>rr',
+      run_buffer = '<leader>ra',
+      picker     = '<leader>rp',
+      select_env = '<leader>re',
+    },
+  })
+<
+==============================================================================
+ENVIRONMENTS                                          *tachydromos-environments*
+
+`tachy` has no environment-listing command (per the contract), so this
+plugin reads `http-client.env.json` / `http-client.private.env.json` itself,
+using the same walk-and-merge algorithm `tachy` uses when resolving `--env`:
+walking upward from the `.http` file's OWN directory (not Neovim's cwd, not
+`--dir`) to the filesystem root. At each level, the private file overrides
+the public one; across levels, a directory closer to the file overrides a
+farther ancestor only on conflicting keys — non-conflicting keys from
+ancestors still apply. Keys starting with `$` (e.g. `$schema`) are skipped.
+
+The chosen environment is stored per-buffer (`vim.b.tachydromos_env`) and
+passed as `--env <name>` on every subsequent run from that buffer, until
+changed or cleared via `:Tachydromos env`.
+
+There is currently no CLI flag to inject one-off variables from Neovim
+(no `--var name=value`); this plugin does not attempt to fake that by
+rewriting `.http` files on disk. See |tachydromos-contract-gaps|.
+
+==============================================================================
+CHAINING CAVEAT                                          *tachydromos-chaining*
+
+Per the contract, `tachy run --request NAME` does NOT run any other request
+first — including one `NAME` chains off of via `{{OTHER.response...}}`.
+|tachydromos.run_current()| and |tachydromos.pick_and_run()| heuristically
+check the request's raw URL (as returned by `tachy list`) for a
+`{{WORD.response` pattern and fall back to running the whole file
+(`:Tachydromos buffer`) when it matches.
+
+This is a heuristic only: `tachy list` exposes just the raw request-line
+URL, not headers or body, so a chaining reference living only in a header
+or the request body is invisible to it. When in doubt, use
+`:Tachydromos buffer` directly.
+
+==============================================================================
+CLI CONTRACT GAPS                                    *tachydromos-contract-gaps*
+
+Known gaps in the `tachy` CLI (see `docs/cli-contract.md`) that limit this
+plugin's feature set, carried over verbatim rather than worked around:
+- No `--var name=value`: no ad-hoc variable override from Neovim.
+- No dry-run/"resolve and preview without sending" mode.
+- No replay of the last request; a "run again" action just re-invokes
+  `tachy run --request <name>`.
+- No persistence across invocations: chaining/cookies are memory-only,
+  scoped to a single `tachy run` process. Running `NAME` alone in one
+  invocation and a dependent request in another never resolves the chain.
+- Binary response bodies are not JSON-safe in `--format json` output;
+  `Body:` rendering in the result buffer is best-effort for such bodies.
+
+==============================================================================
+LUA API                                                       *tachydromos-api*
+
+setup({config})                                          *tachydromos.setup()*
+    Merge {config} over the defaults, create the `:Tachydromos` user
+    command, and attach buffer-local keymaps to `.http` buffers (including
+    any already open when `setup()` runs).
+
+    Parameters~
+    {config} `(table|nil)` See |tachydromos-config|.
+
+run_current()                                       *tachydromos.run_current()*
+    Run the request under the cursor. Lua equivalent of
+    `:Tachydromos run`.
+
+run_buffer()                                        *tachydromos.run_buffer()*
+    Run every request in the current file. Lua equivalent of
+    `:Tachydromos buffer`.
+
+pick_and_run()                                    *tachydromos.pick_and_run()*
+    Pick a request by name and run it. Lua equivalent of
+    `:Tachydromos picker`.
+
+select_env()                                         *tachydromos.select_env()*
+    Open the environment picker. Lua equivalent of `:Tachydromos env` with
+    no argument.
+
+set_env({name})                                          *tachydromos.set_env()*
+    Set (`{name}` non-nil/non-empty) or clear (`nil`/`''`) the active
+    environment for the current buffer. Lua equivalent of
+    `:Tachydromos env {name}`.
+
+    Parameters~
+    {name} `(string|nil)`
+
+==============================================================================
+                                                          *tachydromos-contract*
+See `docs/cli-contract.md` in this plugin's repo for the full CLI
+integration contract this module is written against — every `tachy`
+command/flag this plugin uses is documented there.
+
+ vim:tw=78:ts=8:noet:ft=help:norl:
