@@ -2,12 +2,12 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-Run `.http` request files from Neovim, backed by the [`tachydromos`](../tachydromos)
-CLI (`tachy`) instead of an embedded HTTP client. Functionally in the spirit
-of [kulala.nvim](https://github.com/mistweaverco/kulala.nvim) — run request
-under cursor, run by name, response split, environment selection, syntax
-highlighting — but every interaction with the outside world goes through
-`tachy` exactly as documented in [`docs/cli-contract.md`](docs/cli-contract.md).
+Run `.http` request files from Neovim, backed by the
+[`tachydromos`](https://github.com/tachydromos/tachydromos) CLI (`tachy`)
+instead of an embedded HTTP client — run request under cursor, run by name,
+response split, environment selection, syntax highlighting. Every
+interaction with the outside world goes through `tachy`, exactly as
+documented in [`docs/cli-contract.md`](docs/cli-contract.md).
 
 Built following [mini.nvim](https://github.com/nvim-mini/mini.nvim)'s module
 conventions: single `return module` table, `setup(config)` merging over
@@ -110,3 +110,15 @@ Neovim (no `--var` flag exists), offer a "preview resolved request" dry-run
 (not supported by the CLI), or persist chaining/cookies across separate runs
 (each `tachy run` invocation starts cold). See the contract's "Known gaps"
 section and `:help tachydromos-contract-gaps` for the full list.
+
+## Similar projects
+
+- [kulala.nvim](https://github.com/mistweaverco/kulala.nvim) — the plugin
+  this one takes UX inspiration from (run under cursor, run by name, response
+  split, environment selection). Unlike kulala.nvim, every request here is
+  executed by the external [`tachy`](https://github.com/tachydromos/tachydromos)
+  CLI rather than an embedded HTTP client.
+
+## License
+
+MIT — see [`LICENSE`](LICENSE).
