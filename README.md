@@ -1,5 +1,7 @@
 # tachydromos.nvim
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 Run `.http` request files from Neovim, backed by the [`tachydromos`](../tachydromos)
 CLI (`tachy`) instead of an embedded HTTP client. Functionally in the spirit
 of [kulala.nvim](https://github.com/mistweaverco/kulala.nvim) — run request
@@ -27,7 +29,7 @@ Run `:checkhealth tachydromos` after installing to verify both.
 
 ```lua
 {
-  'your-org/tachydromos.nvim',
+  'tachydromos/tachydromos.nvim',
   ft = 'http',
   opts = {},
 }
@@ -40,7 +42,7 @@ To customize, pass a config table instead of `{}` — see below.
 
 ```lua
 use({
-  'your-org/tachydromos.nvim',
+  'tachydromos/tachydromos.nvim',
   config = function()
     require('tachydromos').setup({})
   end,
